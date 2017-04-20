@@ -430,7 +430,7 @@ SKIP: {
     my $entry = catfile($tmp_base, "file");
     skip "VMS can have a file and a directory with the same name.", 4
         if $Is_VMS;
-    skip "Cannot create $entry", 4 unless open OUT, "> $entry";
+    skip "Cannot create $entry", 4 unless open OUT, ">", $entry;
     print OUT "test file, safe to delete\n", scalar(localtime), "\n";
     close OUT;
     ok(-e $entry, "file exists in place of directory");
@@ -800,7 +800,11 @@ is(
         "If not provided with any paths, make_path() will return a count of 0 things created");
 }
 
-{
+ SKIP: {
+    my $skip_count = 5;
+    skip "getpwuid() and getgrgid() not implemented on Windows", $skip_count
+        if $^O eq 'MSWin32';
+
     my ($least_deep, $next_deepest, $deepest) =
         create_3_level_subdirs( qw| d e f | );
     my (@created, $error);
@@ -846,7 +850,11 @@ SKIP: {
     cleanup_3_level_subdirs($least_deep);
 }
 
-{
+ SKIP: {
+     my $skip_count = 5;
+    skip "getpwuid() and getgrgid() not implemented on Windows", $skip_count
+        if $^O eq 'MSWin32';
+
     my ($least_deep, $next_deepest, $deepest) =
         create_3_level_subdirs( qw| p q r | );
     my (@created, $error);
