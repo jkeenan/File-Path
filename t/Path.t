@@ -485,7 +485,11 @@ SKIP : {
         $mode = (stat($dir))[2];
         $octal_mode = S_IMODE($mode);
         $octal_input = sprintf "%04o", S_IMODE($input);
-        is($octal_mode,$input, "create a new directory with chmod $input ($octal_input)");
+        SKIP: {
+	    skip "permissions are not fully supported by the filesystem", 1
+                if (($^O eq 'MSWin32' || $^O eq 'cygwin') && ((Win32::FsType())[1] & 8) == 0);
+            is($octal_mode,$input, "create a new directory with chmod $input ($octal_input)");
+	}
         rmtree( $dir );
     }
 }
