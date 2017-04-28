@@ -19,7 +19,7 @@ build_script:
   - dmake
  
 test_script:
-  - dmake test
+  - dmake test TEST_VERBOSE=1
 
 notifications:
   - provider: Email
