@@ -16,11 +16,10 @@ BEGIN {
     }
 }
 
-use Exporter ();
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
+use Exporter qw(import);
+use vars qw($VERSION @EXPORT @EXPORT_OK);
 $VERSION   = '2.17';
 $VERSION   = eval $VERSION;
-@ISA       = qw(Exporter);
 @EXPORT    = qw(mkpath rmtree);
 @EXPORT_OK = qw(make_path remove_tree);
 
