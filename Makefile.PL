@@ -11,6 +11,7 @@ my %WriteMakefileArgs = (
     VERSION_FROM  => 'lib/File/Path.pm',
     ABSTRACT_FROM => 'lib/File/Path.pm',
     INSTALLDIRS   => ($] < 5.011 ? 'perl' : 'site'),
+    LICENSE       => 'perl',
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
     },
@@ -41,8 +42,8 @@ my %WriteMakefileArgs = (
           web  => 'https://github.com/jkeenan/File-Path',
           type => 'git',
         },
+        license => [ 'http://dev.perl.org/licenses/' ],
       },
-      license => 'perl',
     }) : () ),
 );
 if ($^O eq 'MSWin32') {
@@ -64,4 +65,3 @@ delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
     unless eval { ExtUtils::MakeMaker->VERSION(6.52) };
 
 WriteMakefile(%WriteMakefileArgs);
-
