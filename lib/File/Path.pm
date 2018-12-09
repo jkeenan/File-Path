@@ -67,110 +67,113 @@ sub _error {
 }
 
 sub __is_arg {
-    my ($arg) = @_;
-
     # If client code blessed an array ref to HASH, this will not work
     # properly. We could have done $arg->isa() wrapped in eval, but
     # that would be expensive. This implementation should suffice.
     # We could have also used Scalar::Util:blessed, but we choose not
     # to add this dependency
-    return ( ref $arg eq 'HASH' );
+    return ref $_[0] eq 'HASH';
+}
+
+sub __is_old_style {
+    return not( @_ and __is_arg( $_[-1] ) );
 }
 
 sub make_path {
-    push @_, {} unless @_ and __is_arg( $_[-1] );
+    push @_, {} if __is_old_style(@_);
     goto &mkpath;
 }
 
+sub __mkpath_old_style {
+    my ( $paths, $verbose, $mode ) = @_;
+    my $data;
+
+    $paths = [$paths] unless UNIVERSAL::isa( $paths, 'ARRAY' );
+    $data->{verbose} = $verbose;
+    $data->{mode} = defined $mode ? $mode : oct '777';
+
+    return _mkpath( $data, $paths );
+}
+
 sub mkpath {
-    my $old_style = !( @_ and __is_arg( $_[-1] ) );
+    return __mkpath_old_style(@_) if __is_old_style(@_);
 
     my $data;
-    my $paths;
 
-    if ($old_style) {
-        my ( $verbose, $mode );
-        ( $paths, $verbose, $mode ) = @_;
-        $paths = [$paths] unless UNIVERSAL::isa( $paths, 'ARRAY' );
-        $data->{verbose} = $verbose;
-        $data->{mode} = defined $mode ? $mode : oct '777';
+    my %args_permitted = map { $_ => 1 } ( qw|
+        chmod
+        error
+        group
+        mask
+        mode
+        owner
+        uid
+        user
+        verbose
+    | );
+    my %not_on_win32_args = map { $_ => 1 } ( qw|
+        group
+        owner
+        uid
+        user
+    | );
+    my @bad_args = ();
+    my @win32_implausible_args = ();
+    my $arg = pop @_;
+    for my $k (sort keys %{$arg}) {
+        if (! $args_permitted{$k}) {
+            push @bad_args, $k;
+        }
+        elsif ($not_on_win32_args{$k} and _IS_MSWIN32) {
+            push @win32_implausible_args, $k;
+        }
+        else {
+            $data->{$k} = $arg->{$k};
+        }
     }
-    else {
-        my %args_permitted = map { $_ => 1 } ( qw|
-            chmod
-            error
-            group
-            mask
-            mode
-            owner
-            uid
-            user
-            verbose
-        | );
-        my %not_on_win32_args = map { $_ => 1 } ( qw|
-            group
-            owner
-            uid
-            user
-        | );
-        my @bad_args = ();
-        my @win32_implausible_args = ();
-        my $arg = pop @_;
-        for my $k (sort keys %{$arg}) {
-            if (! $args_permitted{$k}) {
-                push @bad_args, $k;
-            }
-            elsif ($not_on_win32_args{$k} and _IS_MSWIN32) {
-                push @win32_implausible_args, $k;
+    _carp("Unrecognized option(s) passed to mkpath() or make_path(): @bad_args")
+        if @bad_args;
+    _carp("Option(s) implausible on Win32 passed to mkpath() or make_path(): @win32_implausible_args")
+        if @win32_implausible_args;
+    $data->{mode} = delete $data->{mask} if exists $data->{mask};
+    $data->{mode} = oct '777' unless exists $data->{mode};
+    ${ $data->{error} } = [] if exists $data->{error};
+    unless (@win32_implausible_args) {
+        $data->{owner} = delete $data->{user} if exists $data->{user};
+        $data->{owner} = delete $data->{uid}  if exists $data->{uid};
+        if ( exists $data->{owner} and $data->{owner} =~ /\D/ ) {
+            my $uid = ( getpwnam $data->{owner} )[2];
+            if ( defined $uid ) {
+                $data->{owner} = $uid;
             }
             else {
-                $data->{$k} = $arg->{$k};
+                _error( $data,
+                        "unable to map $data->{owner} to a uid, ownership not changed"
+                        );
+                delete $data->{owner};
             }
         }
-        _carp("Unrecognized option(s) passed to mkpath() or make_path(): @bad_args")
-            if @bad_args;
-        _carp("Option(s) implausible on Win32 passed to mkpath() or make_path(): @win32_implausible_args")
-            if @win32_implausible_args;
-        $data->{mode} = delete $data->{mask} if exists $data->{mask};
-        $data->{mode} = oct '777' unless exists $data->{mode};
-        ${ $data->{error} } = [] if exists $data->{error};
-        unless (@win32_implausible_args) {
-            $data->{owner} = delete $data->{user} if exists $data->{user};
-            $data->{owner} = delete $data->{uid}  if exists $data->{uid};
-            if ( exists $data->{owner} and $data->{owner} =~ /\D/ ) {
-                my $uid = ( getpwnam $data->{owner} )[2];
-                if ( defined $uid ) {
-                    $data->{owner} = $uid;
-                }
-                else {
-                    _error( $data,
-                            "unable to map $data->{owner} to a uid, ownership not changed"
-                          );
-                    delete $data->{owner};
-                }
+        if ( exists $data->{group} and $data->{group} =~ /\D/ ) {
+            my $gid = ( getgrnam $data->{group} )[2];
+            if ( defined $gid ) {
+                $data->{group} = $gid;
             }
-            if ( exists $data->{group} and $data->{group} =~ /\D/ ) {
-                my $gid = ( getgrnam $data->{group} )[2];
-                if ( defined $gid ) {
-                    $data->{group} = $gid;
-                }
-                else {
-                    _error( $data,
-                            "unable to map $data->{group} to a gid, group ownership not changed"
-                    );
-                    delete $data->{group};
-                }
-            }
-            if ( exists $data->{owner} and not exists $data->{group} ) {
-                $data->{group} = -1;    # chown will leave group unchanged
-            }
-            if ( exists $data->{group} and not exists $data->{owner} ) {
-                $data->{owner} = -1;    # chown will leave owner unchanged
+            else {
+                _error( $data,
+                        "unable to map $data->{group} to a gid, group ownership not changed"
+                );
+                delete $data->{group};
             }
         }
-        $paths = [@_];
+        if ( exists $data->{owner} and not exists $data->{group} ) {
+            $data->{group} = -1;    # chown will leave group unchanged
+        }
+        if ( exists $data->{group} and not exists $data->{owner} ) {
+            $data->{owner} = -1;    # chown will leave owner unchanged
+        }
     }
-    return _mkpath( $data, $paths );
+
+    return _mkpath( $data, \@_ );
 }
 
 sub _mkpath {
@@ -268,11 +271,9 @@ sub _is_subdir {
 }
 
 sub rmtree {
-    my $old_style = !( @_ and __is_arg( $_[-1] ) );
-
     my ($arg, $data, $paths);
 
-    if ($old_style) {
+    if (__is_old_style(@_)) {
         my ( $verbose, $safe );
         ( $paths, $verbose, $safe ) = @_;
         $data->{verbose} = $verbose;
