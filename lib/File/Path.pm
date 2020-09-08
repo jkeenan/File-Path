@@ -3,7 +3,7 @@ package File::Path;
 use 5.005_04;
 use strict;
 
-use Cwd 'getcwd';
+use Cwd ();
 use File::Basename ();
 use File::Spec     ();
 
@@ -52,9 +52,7 @@ sub _croak {
 }
 
 sub _error {
-    my $arg     = shift;
-    my $message = shift;
-    my $object  = shift;
+    my ($arg, $message, $object) = @_;
 
     if ( $arg->{error} ) {
         $object = '' unless defined $object;
@@ -325,7 +323,7 @@ sub rmtree {
     $data->{depth}  = 0;
 
     my @clean_path;
-    $data->{cwd} = getcwd() or do {
+    $data->{cwd} = Cwd::abs_path(Cwd::getcwd()) or do {
         _error( $data, "cannot fetch initial working directory" );
         return 0;
     };
@@ -440,7 +438,7 @@ sub _rmtree {
             if (_NEED_STAT_CHECK) {
                 ( $ldev eq $cur_dev and $lino eq $cur_inode )
                   or _croak(
-"directory $canon changed before chdir, expected dev=$ldev ino=$lino, actual dev=$cur_dev ino=$cur_inode, aborting."
+"directory $canon changed before chdir, expected dev=$ldev ino=$lino, actual dev=$cur_dev ino=$cur_inode, aborting"
                   );
             }
 
@@ -510,21 +508,23 @@ sub _rmtree {
             # don't leave the client code in an unexpected directory
             chdir( $data->{cwd} )
               or
-              _croak("cannot chdir to $data->{cwd} from $canon: $!, aborting.");
+              _croak("cannot chdir to $data->{cwd} from $canon: $!, aborting");
 
             # ensure that a chdir upwards didn't take us somewhere other
             # than we expected (see CVE-2002-0435)
             ( $cur_dev, $cur_inode ) = ( stat $curdir )[ 0, 1 ]
               or _croak(
-                "cannot stat prior working directory $data->{cwd}: $!, aborting."
+                "cannot stat prior working directory $data->{cwd}: $!, aborting"
               );
 
             if (_NEED_STAT_CHECK) {
-                ( $data->{device} eq $cur_dev and $data->{inode} eq $cur_inode )
+                # when the cwd symlink crosses a mountpoint this would fail
+                ( -l $data->{cwd} or
+                  ( $data->{device} eq $cur_dev and $data->{inode} eq $cur_inode ))
                   or _croak(  "previous directory $data->{cwd} "
                             . "changed before entering $canon, "
                             . "expected dev=$ldev ino=$lino, "
-                            . "actual dev=$cur_dev ino=$cur_inode, aborting."
+                            . "actual dev=$cur_dev ino=$cur_inode, aborting"
                   );
             }
 
@@ -1054,7 +1054,7 @@ begin deleting the objects therein, but was unsuccessful. This is
 usually a permissions issue. The routine will continue to delete
 other things, but this directory will be left intact.
 
-=item directory [dir] changed before chdir, expected dev=[n] ino=[n], actual dev=[n] ino=[n], aborting. (FATAL)
+=item directory [dir] changed before chdir, expected dev=[n] ino=[n], actual dev=[n] ino=[n], aborting (FATAL)
 
 C<remove_tree> recorded the device and inode of a directory, and then
 moved into it. It then performed a C<stat> on the current directory
@@ -1092,20 +1092,20 @@ The directory tree is left untouched.
 The solution is to C<chdir> out of the child directory to a place
 outside the directory tree to be removed.
 
-=item cannot chdir to [parent-dir] from [child-dir]: [errmsg], aborting. (FATAL)
+=item cannot chdir to [parent-dir] from [child-dir]: [errmsg], aborting (FATAL)
 
 C<remove_tree>, after having deleted everything and restored the permissions
 of a directory, was unable to chdir back to the parent. The program
 halts to avoid a race condition from occurring.
 
-=item cannot stat prior working directory [dir]: [errmsg], aborting. (FATAL)
+=item cannot stat prior working directory [dir]: [errmsg], aborting (FATAL)
 
 C<remove_tree> was unable to stat the parent directory after having returned
 from the child. Since there is no way of knowing if we returned to
 where we think we should be (by comparing device and inode) the only
 way out is to C<croak>.
 
-=item previous directory [parent-dir] changed before entering [child-dir], expected dev=[n] ino=[n], actual dev=[n] ino=[n], aborting. (FATAL)
+=item previous directory [parent-dir] changed before entering [child-dir], expected dev=[n] ino=[n], actual dev=[n] ino=[n], aborting (FATAL)
 
 When C<remove_tree> returned from deleting files in a child directory, a
 check revealed that the parent directory it returned to wasn't the one
