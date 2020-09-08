@@ -16,13 +16,12 @@ BEGIN {
     }
 }
 
-use Exporter ();
-use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
-$VERSION   = '2.17';
-$VERSION   = eval $VERSION;
-@ISA       = qw(Exporter);
-@EXPORT    = qw(mkpath rmtree);
-@EXPORT_OK = qw(make_path remove_tree);
+use Exporter qw(import);
+
+our $VERSION   = '2.17';
+$VERSION       = eval $VERSION;
+our @EXPORT    = qw(mkpath rmtree);
+our @EXPORT_OK = qw(make_path remove_tree);
 
 BEGIN {
   for (qw(VMS MacOS MSWin32 os2)) {
