@@ -3,7 +3,7 @@
 
 use strict;
 
-use Test::More tests => 167;
+use Test::More tests => 175;
 use Config;
 use Fcntl ':mode';
 use lib './t';
@@ -957,3 +957,71 @@ SKIP: {
 
     cleanup_3_level_subdirs($least_deep);
 }
+
+SKIP: {
+    # https://rt.cpan.org/Ticket/Display.html?id=157556
+    skip "Don't need Force_Writeable semantics on $^O", 8
+        if grep {$^O eq $_} qw(amigaos dos epoc MSWin32 MacOS os2);
+    skip "Symlinks not available", 8 unless $Config{d_symlink};
+    $dir  = 'rt157556';
+    $dir2 = 'rt157556-symlink';
+    @created = make_path($dir, {mask => 0700});
+
+    is( scalar @created, 1, 'bug rt-157556 setup' );
+    symlink($dir, $dir2);
+
+    #ok(-e $dir2, "bug rt-157556 setup symlink") or diag($dir2);
+    ok(-l $dir2, "bug rt-157556 setup symlink") or diag($dir2);
+
+    my $file  = catdir($dir, 'rt157556-file');
+    my $file_under_symlink = catdir($dir2, 'rt157556-file');
+    open my $out, '>', $file;
+    close $out;
+
+    ok(-e $file, "$file exists");
+    ok(-e $file_under_symlink, "$file_under_symlink exists");
+
+    rmtree( $dir2, { keep_root => 1 } );
+    # rt 157556 argues that $file_under_symlink should no longer exist
+    # but that $dir2 should still exist (despite being a symlink);
+    # instead $dir2 is erroneously deleted
+    ok(! -e $file_under_symlink, "$file_under_symlink no longer exists");
+    ok(! -e $file, "$file no longer exists");
+    ok(-e $dir2, "$dir2 still exists");
+    ok(-d $dir, "$dir still exists");
+
+#    chmod 0500, $dir;
+#    my $mask_initial = (stat $dir)[2];
+#    remove_tree($dir2);
+#
+#    my $mask = (stat $dir)[2];
+#
+#    is( $mask, $mask_initial, 'mask of symlink target dir unchanged (debian bug 487319)');
+#
+#    # now try a file
+#    #my $file = catfile($dir, 'file');
+#    my $file  = 'rt157556-file';
+#    my $file2 = 'rt157556-file-symlink';
+#    open my $out, '>', $file;
+#    close $out;
+#
+#    ok(-e $file, 'file exists');
+#
+#    chmod 0500, $file;
+#    $mask_initial = (stat $file)[2];
+#
+#    symlink($file, $file2);
+#
+#    ok(-e $file2, 'file2 exists');
+#    remove_tree($file2);
+#
+#    $mask = (stat $file)[2];
+#
+#    is( $mask, $mask_initial, 'mask of symlink target file unchanged (debian bug 487319)');
+#
+#    remove_tree($dir);
+#    remove_tree($file);
+
+    remove_tree($dir);
+}
+
