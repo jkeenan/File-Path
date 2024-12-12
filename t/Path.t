@@ -981,14 +981,14 @@ SKIP: {
     ok(-e $file, "$file exists");
     ok(-e $file_under_symlink, "$file_under_symlink exists");
 
-    rmtree( $dir2, { keep_root => 1 } );
+    remove_tree( $dir2, { keep_root => 1, verbose => 1 } );
     # rt 157556 argues that $file_under_symlink should no longer exist
     # but that $dir2 should still exist (despite being a symlink);
     # instead $dir2 is erroneously deleted
-    ok(! -e $file_under_symlink, "$file_under_symlink no longer exists");
-    ok(! -e $file, "$file no longer exists");
-    ok(-e $dir2, "$dir2 still exists");
     ok(-d $dir, "$dir still exists");
+    ok(-l $dir2, "$dir2 still exists"); #
+    ok(! -e $file, "$file no longer exists"); #
+    ok(! -e $file_under_symlink, "$file_under_symlink no longer exists");
 
 #    chmod 0500, $dir;
 #    my $mask_initial = (stat $dir)[2];
